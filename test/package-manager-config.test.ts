@@ -4,6 +4,7 @@ import { parse } from "yaml";
 
 type PnpmBuildConfig = {
   allowBuilds?: Record<string, boolean>;
+  blockExoticSubdeps?: boolean;
   ignoredBuiltDependencies?: string[];
   onlyBuiltDependencies?: string[];
 };
@@ -26,5 +27,13 @@ describe("package manager build policy", () => {
     expect(packageJson.pnpm).toBeUndefined();
     expect(workspace.allowBuilds?.["@discordjs/opus"]).toBe(false);
     expect(workspace.onlyBuiltDependencies ?? []).not.toContain("@discordjs/opus");
+  });
+
+  it("allows Baileys' pinned libsignal git subdependency", () => {
+    const workspace = parse(fs.readFileSync("pnpm-workspace.yaml", "utf8")) as WorkspaceConfig;
+
+    expect(workspace.allowBuilds?.["baileys"]).toBe(true);
+    expect(workspace.allowBuilds?.["@whiskeysockets/libsignal-node"]).toBe(true);
+    expect(workspace.blockExoticSubdeps).toBe(false);
   });
 });
