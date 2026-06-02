@@ -324,6 +324,7 @@ env:
 jobs:
   validate_selected_ref:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       selected_sha: ${{ steps.validate.outputs.selected_sha }}
       trusted_reason: ${{ steps.validate.outputs.trusted_reason }}
