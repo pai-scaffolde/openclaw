@@ -785,6 +785,12 @@ describe("package artifact reuse", () => {
     expect(readFileSync("package.json", "utf8")).not.toContain(
       '"test:docker:live-codex-media-path": "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=api-key',
     );
+    expect(readFileSync("package.json", "utf8")).toContain(
+      '"test:docker:live-codex-bind": "OPENCLAW_LIVE_CODEX_BIND=1 OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai',
+    );
+    expect(scenarios).toContain(
+      "OPENCLAW_LIVE_CODEX_BIND=1 OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts",
+    );
     expect(readFileSync("scripts/test-live-subagent-announce-docker.sh", "utf8")).toContain(
       "OPENCLAW_LIVE_SUBAGENT_DOCKER_RUN_TIMEOUT:-1200s",
     );

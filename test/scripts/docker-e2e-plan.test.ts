@@ -693,6 +693,18 @@ describe("scripts/lib/docker-e2e-plan", () => {
     }
   });
 
+  it("plans native Codex bind through the public OpenAI model route with Codex auth", () => {
+    const plan = planFor({ selectedLaneNames: ["live-codex-bind"] });
+    const lane = plan.lanes[0];
+
+    expect(plan.credentials).toEqual(["codex"]);
+    expect(lane?.command).toContain("OPENCLAW_LIVE_CODEX_BIND=1");
+    expect(lane?.command).toContain("OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai");
+    expect(lane?.command).toContain(
+      "OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts",
+    );
+  });
+
   it("plans the Codex npm plugin live lane as package-backed OpenAI proof", () => {
     const plan = planFor({ selectedLaneNames: ["live-codex-npm-plugin"] });
 

@@ -519,7 +519,7 @@ export const tailLanes = [
     "live-codex-bind",
     liveDockerScriptCommand(
       "test-live-codex-harness-docker.sh",
-      "OPENCLAW_LIVE_CODEX_BIND=1 OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts",
+      "OPENCLAW_LIVE_CODEX_BIND=1 OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts",
     ),
     {
       cacheKey: "codex-harness",
