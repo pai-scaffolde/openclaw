@@ -458,17 +458,7 @@ describe("package artifact reuse", () => {
       OPENCLAW_CODEX_CONFIG_TOML: "${{ secrets.OPENCLAW_CODEX_CONFIG_TOML }}",
     };
 
-    expect(workflow.jobs?.codex_subscription_live).toMatchObject({
-      uses: "./.github/workflows/openclaw-live-and-e2e-checks-reusable.yml",
-      with: {
-        include_repo_e2e: false,
-        include_release_path_suites: false,
-        include_openwebui: false,
-        include_live_suites: true,
-        live_suite_filter: "live-codex-harness-docker",
-      },
-      secrets: codexSecrets,
-    });
+    expect(Object.keys(workflow.jobs ?? {})).toEqual(["codex_subscription_e2e"]);
     expect(workflow.jobs?.codex_subscription_e2e).toMatchObject({
       uses: "./.github/workflows/openclaw-live-and-e2e-checks-reusable.yml",
       with: {
@@ -476,10 +466,11 @@ describe("package artifact reuse", () => {
         include_release_path_suites: false,
         include_openwebui: false,
         include_live_suites: false,
-        docker_lanes: "live-codex-harness live-codex-media-path live-codex-bind",
+        docker_lanes: "live-codex-harness live-codex-media-path",
       },
       secrets: codexSecrets,
     });
+    expect(raw).not.toContain("live-codex-bind");
     expect(raw).not.toContain("OPENAI_API_KEY:");
     expect(raw).not.toContain("ANTHROPIC_API_KEY:");
     expect(raw).not.toContain("include_release_path_suites: true");

@@ -19,25 +19,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  codex_subscription_live:
-    name: Codex subscription live harness
-    permissions:
-      actions: read
-      contents: read
-      packages: write
-      pull-requests: read
-    uses: ./.github/workflows/openclaw-live-and-e2e-checks-reusable.yml
-    with:
-      ref: ${{ github.sha }}
-      include_repo_e2e: false
-      include_release_path_suites: false
-      include_openwebui: false
-      include_live_suites: true
-      live_suite_filter: live-codex-harness-docker
-    secrets:
-      OPENCLAW_CODEX_AUTH_JSON: ${{ secrets.OPENCLAW_CODEX_AUTH_JSON }}
-      OPENCLAW_CODEX_CONFIG_TOML: ${{ secrets.OPENCLAW_CODEX_CONFIG_TOML }}
-
   codex_subscription_e2e:
     name: Codex subscription Docker E2E lanes
     permissions:
@@ -52,7 +33,7 @@ jobs:
       include_release_path_suites: false
       include_openwebui: false
       include_live_suites: false
-      docker_lanes: live-codex-harness live-codex-media-path live-codex-bind
+      docker_lanes: live-codex-harness live-codex-media-path
     secrets:
       OPENCLAW_CODEX_AUTH_JSON: ${{ secrets.OPENCLAW_CODEX_AUTH_JSON }}
       OPENCLAW_CODEX_CONFIG_TOML: ${{ secrets.OPENCLAW_CODEX_CONFIG_TOML }}
