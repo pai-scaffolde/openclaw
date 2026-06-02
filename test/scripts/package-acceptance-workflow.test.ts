@@ -36,7 +36,11 @@ type WorkflowJob = {
   if?: string;
   name?: string;
   needs?: string | string[];
+  permissions?: Record<string, string>;
+  secrets?: Record<string, string>;
   "timeout-minutes"?: number | string;
+  uses?: string;
+  with?: Record<string, unknown>;
   steps?: WorkflowStep[];
 };
 
@@ -431,7 +435,7 @@ describe("package artifact reuse", () => {
     expect(pullHelper).toContain("timeout --kill-after=1s 1s true >/dev/null 2>&1");
     expect(pullHelper).toContain('timeout "${timeout_seconds}s" docker pull "$image"');
     expect(pullHelper).toContain(
-      'timeout command not found; cannot bound Docker pull after ${timeout_seconds}s',
+      "timeout command not found; cannot bound Docker pull after ${timeout_seconds}s",
     );
     expect(dockerE2ePlanAction.match(/bash scripts\/ci-docker-pull-retry\.sh/g)?.length).toBe(2);
     expect(dockerE2ePlanAction).not.toContain('docker pull "${OPENCLAW_DOCKER_E2E_');
@@ -444,6 +448,42 @@ describe("package artifact reuse", () => {
     expect(workflow).toContain("uses: useblacksmith/build-push-action@");
     expect(workflow).not.toContain("cache-from: type=gha,scope=docker-e2e");
     expect(workflow).not.toContain("cache-to: type=gha,mode=max,scope=docker-e2e");
+  });
+
+  it("scopes scheduled checks to Codex subscription auth", () => {
+    const workflow = readWorkflow(SCHEDULED_LIVE_CHECKS_WORKFLOW);
+    const raw = readFileSync(SCHEDULED_LIVE_CHECKS_WORKFLOW, "utf8");
+    const codexSecrets = {
+      OPENCLAW_CODEX_AUTH_JSON: "${{ secrets.OPENCLAW_CODEX_AUTH_JSON }}",
+      OPENCLAW_CODEX_CONFIG_TOML: "${{ secrets.OPENCLAW_CODEX_CONFIG_TOML }}",
+    };
+
+    expect(workflow.jobs?.codex_subscription_live).toMatchObject({
+      uses: "./.github/workflows/openclaw-live-and-e2e-checks-reusable.yml",
+      with: {
+        include_repo_e2e: false,
+        include_release_path_suites: false,
+        include_openwebui: false,
+        include_live_suites: true,
+        live_suite_filter: "live-codex-harness-docker",
+      },
+      secrets: codexSecrets,
+    });
+    expect(workflow.jobs?.codex_subscription_e2e).toMatchObject({
+      uses: "./.github/workflows/openclaw-live-and-e2e-checks-reusable.yml",
+      with: {
+        include_repo_e2e: false,
+        include_release_path_suites: false,
+        include_openwebui: false,
+        include_live_suites: false,
+        docker_lanes: "live-codex-harness live-codex-media-path live-codex-bind",
+      },
+      secrets: codexSecrets,
+    });
+    expect(raw).not.toContain("OPENAI_API_KEY:");
+    expect(raw).not.toContain("ANTHROPIC_API_KEY:");
+    expect(raw).not.toContain("include_release_path_suites: true");
+    expect(raw).not.toContain("include_openwebui: true");
   });
 
   it("shards broad native live tests instead of one serial live-all job", () => {
@@ -463,6 +503,9 @@ describe("package artifact reuse", () => {
     expect(workflow).toContain("validate_live_suite_filter:");
     expect(workflow).toContain("LIVE_SUITE_FILTER: ${{ inputs.live_suite_filter }}");
     expect(workflow).toContain("live-cache attempt ${attempt}/2");
+    expect(workflow).toContain("Missing OPENAI_API_KEY secret for live-cache validation.");
+    expect(workflow).toContain("Missing ANTHROPIC_API_KEY secret for live-cache validation.");
+    expect(workflow).not.toContain("Skipping live-cache validation");
     expect(workflow).toContain(
       "live_suite_filter '${LIVE_SUITE_FILTER}' does not match any runnable suite",
     );
@@ -635,6 +678,14 @@ describe("package artifact reuse", () => {
     expect(workflow).toContain(
       'command: OPENCLAW_LIVE_DOCKER_REPO_ROOT="$GITHUB_WORKSPACE" timeout --foreground --kill-after=30s 35m bash .release-harness/scripts/test-live-codex-harness-docker.sh',
     );
+    expect([
+      ...workflow.matchAll(
+        /live-codex-harness-docker\)\s+echo "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=codex-auth" >> "\$GITHUB_ENV"/gu,
+      ),
+    ]).toHaveLength(2);
+    expect(workflow).not.toContain(
+      'echo "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=api-key" >> "$GITHUB_ENV"',
+    );
     expect(workflow).toContain(
       'command: OPENCLAW_LIVE_DOCKER_REPO_ROOT="$GITHUB_WORKSPACE" timeout --foreground --kill-after=30s 20m bash .release-harness/scripts/test-live-subagent-announce-docker.sh',
     );
@@ -647,6 +698,9 @@ describe("package artifact reuse", () => {
     expect(scenarios).toMatch(/liveDockerScriptCommand\(\s*"test-live-cli-backend-docker\.sh"/u);
     expect(scenarios).toMatch(/liveDockerScriptCommand\(\s*"test-live-acp-bind-docker\.sh"/u);
     expect(scenarios).toMatch(/liveDockerScriptCommand\(\s*"test-live-codex-harness-docker\.sh"/u);
+    expect(scenarios).not.toContain(
+      "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=api-key OPENCLAW_LIVE_CODEX_HARNESS_CHAT_IMAGE_PROBE=1",
+    );
     expect(scenarios).toMatch(
       /liveDockerScriptCommand\(\s*"e2e\/codex-npm-plugin-live-docker\.sh"/u,
     );
@@ -728,6 +782,9 @@ describe("package artifact reuse", () => {
     expect(readFileSync("scripts/test-live-codex-harness-docker.sh", "utf8")).toContain(
       'run_setup_command npm install -g "$OPENCLAW_LIVE_CODEX_CLI_PACKAGE_SPEC"',
     );
+    expect(readFileSync("package.json", "utf8")).not.toContain(
+      '"test:docker:live-codex-media-path": "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=api-key',
+    );
     expect(readFileSync("scripts/test-live-subagent-announce-docker.sh", "utf8")).toContain(
       "OPENCLAW_LIVE_SUBAGENT_DOCKER_RUN_TIMEOUT:-1200s",
     );
@@ -762,7 +819,6 @@ describe("package artifact reuse", () => {
   it("plumbs live credentials through planned Docker E2E live lanes", () => {
     const reusableWorkflow = readFileSync(LIVE_E2E_WORKFLOW, "utf8");
     const releaseChecksWorkflow = readFileSync(RELEASE_CHECKS_WORKFLOW, "utf8");
-    const scheduledWorkflow = readFileSync(SCHEDULED_LIVE_CHECKS_WORKFLOW, "utf8");
     const packageAcceptanceWorkflow = readFileSync(PACKAGE_ACCEPTANCE_WORKFLOW, "utf8");
     const testboxWorkflow = readFileSync(CI_CHECK_TESTBOX_WORKFLOW, "utf8");
     const dockerPlanAction = readFileSync(DOCKER_E2E_PLAN_ACTION, "utf8");
@@ -787,7 +843,6 @@ describe("package artifact reuse", () => {
     for (const workflow of [
       reusableWorkflow,
       releaseChecksWorkflow,
-      scheduledWorkflow,
       packageAcceptanceWorkflow,
       testboxWorkflow,
     ]) {

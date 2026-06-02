@@ -11,6 +11,9 @@ import {
   exactVersionFromOverrideSpec,
   normalizeNpmVersionDrift,
   packageDependencyInputsChanged,
+  packageJsonForShrinkwrap,
+  pnpmLockDriftOverrideEntries,
+  pnpmLockOverrideEntriesForVersions,
   pnpmLockOverrideVersionForVersions,
   parsePnpmPackageKey,
   parseLockPackagePath,
@@ -53,6 +56,39 @@ describe("generate-npm-shrinkwrap", () => {
     expect(pnpmLockOverrideVersionForVersions(new Set(["3.972.38", "3.972.39"]))).toBe("3.972.39");
     expect(pnpmLockOverrideVersionForVersions(new Set(["3.972.39", "3.973.0"]))).toBeNull();
     expect(pnpmLockOverrideVersionForVersions(new Set(["3.972.39", "4.0.0"]))).toBeNull();
+  });
+
+  it("does not preemptively override split major lock lines", () => {
+    expect(pnpmLockOverrideEntriesForVersions("lru-cache", new Set(["6.0.0", "11.5.0"]))).toEqual(
+      [],
+    );
+    expect(
+      pnpmLockOverrideEntriesForVersions("same-major", new Set(["3.972.38", "3.972.39"])),
+    ).toEqual([["same-major", "3.972.39"]]);
+    expect(
+      pnpmLockOverrideEntriesForVersions("split-minor", new Set(["3.972.39", "3.973.0"])),
+    ).toEqual([]);
+  });
+
+  it("adds scoped patch-line overrides only for npm drift outside the pnpm lock", () => {
+    expect(
+      pnpmLockDriftOverrideEntries(
+        [
+          {
+            packageKey: "lru-cache@11.5.1",
+            path: "node_modules/lru-cache",
+          },
+          {
+            packageKey: "zod@5.0.0",
+            path: "node_modules/zod",
+          },
+        ],
+        new Map([
+          ["lru-cache", new Set(["6.0.0", "11.5.0"])],
+          ["zod", new Set(["3.25.76", "4.4.3"])],
+        ]),
+      ),
+    ).toEqual([["lru-cache@~11.5.0", "11.5.0"]]);
   });
 
   it("parses nested scoped package paths", () => {
@@ -180,6 +216,41 @@ describe("generate-npm-shrinkwrap", () => {
     ).toEqual({
       "fast-xml-parser": "5.2.5",
       "react-dom": "19.2.4",
+    });
+  });
+
+  it("pins direct dependencies only when npm overrides target them", () => {
+    expect(
+      packageJsonForShrinkwrap(
+        {
+          name: "fixture",
+          version: "1.0.0",
+          dependencies: {
+            "direct-range": "^1.0.0",
+            untouched: "^2.0.0",
+          },
+          devDependencies: {
+            test: "1.0.0",
+          },
+        },
+        {
+          "direct-range@^1.0.0": "1.0.4",
+        },
+        new Map([
+          ["direct-range", "1.0.4"],
+          ["untouched", "2.0.3"],
+        ]),
+      ),
+    ).toEqual({
+      name: "fixture",
+      version: "1.0.0",
+      dependencies: {
+        "direct-range": "1.0.4",
+        untouched: "^2.0.0",
+      },
+      overrides: {
+        "direct-range@^1.0.0": "1.0.4",
+      },
     });
   });
 

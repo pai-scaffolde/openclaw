@@ -2236,10 +2236,7 @@ jobs:
               echo "OPENCLAW_TEST_CONSOLE=1" >> "$GITHUB_ENV"
               ;;
             live-codex-harness-docker)
-              # Keep CI on the API-key path for now. The staged Codex auth secret
-              # is currently stale, but the wrapper still supports codex-auth for
-              # local maintainer reruns without changing Peter's flow.
-              echo "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=api-key" >> "$GITHUB_ENV"
+              echo "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=codex-auth" >> "$GITHUB_ENV"
               echo "OPENCLAW_LIVE_CODEX_HARNESS_DEBUG=1" >> "$GITHUB_ENV"
               echo "OPENCLAW_CLI_BACKEND_LOG_OUTPUT=1" >> "$GITHUB_ENV"
               echo "OPENCLAW_TEST_CONSOLE=1" >> "$GITHUB_ENV"
@@ -2461,7 +2458,7 @@ jobs:
               echo "OPENCLAW_TEST_CONSOLE=1" >> "$GITHUB_ENV"
               ;;
             live-codex-harness-docker)
-              echo "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=api-key" >> "$GITHUB_ENV"
+              echo "OPENCLAW_LIVE_CODEX_HARNESS_AUTH=codex-auth" >> "$GITHUB_ENV"
               echo "OPENCLAW_LIVE_CODEX_HARNESS_DEBUG=1" >> "$GITHUB_ENV"
               echo "OPENCLAW_CLI_BACKEND_LOG_OUTPUT=1" >> "$GITHUB_ENV"
               echo "OPENCLAW_TEST_CONSOLE=1" >> "$GITHUB_ENV"

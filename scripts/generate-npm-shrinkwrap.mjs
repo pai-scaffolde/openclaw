@@ -109,6 +109,11 @@ function collectPnpmLockPackageVersions(lockfile) {
   return versionsByName;
 }
 
+function packageNameFromOverrideKey(key) {
+  const parsed = parsePnpmPackageKey(key);
+  return parsed?.name ?? key;
+}
+
 function stableVersionParts(version) {
   const match = version.match(STABLE_VERSION_PATTERN);
   return match
@@ -148,6 +153,39 @@ function pnpmLockOverrideVersionForVersions(versions) {
   return parsedVersions.toSorted((left, right) => right.parts.patch - left.parts.patch)[0].version;
 }
 
+function pnpmLockOverrideEntriesForVersions(name, versions) {
+  const exactVersion = pnpmLockOverrideVersionForVersions(versions);
+  return exactVersion === null ? [] : [[name, exactVersion]];
+}
+
+function pnpmLockDriftOverrideEntries(violations, versionsByName) {
+  const entries = new Map();
+  for (const violation of violations) {
+    const parsed = parsePnpmPackageKey(violation.packageKey);
+    const actualParts = parsed ? stableVersionParts(parsed.version) : null;
+    const lockedVersions = parsed ? versionsByName.get(parsed.name) : undefined;
+    if (!parsed || !actualParts || !lockedVersions) {
+      continue;
+    }
+    const sameLine = [...lockedVersions]
+      .map((version) => ({
+        version,
+        parts: stableVersionParts(version),
+      }))
+      .filter(
+        ({ parts }) => parts?.major === actualParts.major && parts?.minor === actualParts.minor,
+      );
+    if (sameLine.length === 0) {
+      continue;
+    }
+    const newestLockedPatch = sameLine.toSorted(
+      (left, right) => right.parts.patch - left.parts.patch,
+    )[0].version;
+    entries.set(`${parsed.name}@~${actualParts.major}.${actualParts.minor}.0`, newestLockedPatch);
+  }
+  return [...entries.entries()].toSorted(([left], [right]) => left.localeCompare(right));
+}
+
 function readPnpmLockVersionOverrides() {
   const lockfile = parseYaml(readFileSync(path.join(ROOT_DIR, "pnpm-lock.yaml"), "utf8"));
   const versionsByName = collectPnpmLockPackageVersions(lockfile);
@@ -156,8 +194,40 @@ function readPnpmLockVersionOverrides() {
   }
   return Object.fromEntries(
     [...versionsByName.entries()]
-      .map(([name, versions]) => [name, pnpmLockOverrideVersionForVersions(versions)])
-      .filter(([, version]) => version !== null)
+      .flatMap(([name, versions]) => pnpmLockOverrideEntriesForVersions(name, versions))
+      .toSorted(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function readPnpmImporterDependencyVersions(packageDir) {
+  const lockfile = parseYaml(readFileSync(path.join(ROOT_DIR, "pnpm-lock.yaml"), "utf8"));
+  const relative = path.relative(ROOT_DIR, packageDir).replaceAll(path.sep, "/");
+  const importerKey = relative || ".";
+  const importer = lockfile?.importers?.[importerKey];
+  const dependencyVersions = new Map();
+  for (const section of ["dependencies", "optionalDependencies"]) {
+    const dependencies = importer?.[section];
+    if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) {
+      continue;
+    }
+    for (const [name, entry] of Object.entries(dependencies)) {
+      const rawVersion = typeof entry?.version === "string" ? entry.version : "";
+      const version = exactVersionFromOverrideSpec(rawVersion.replace(/\(.*/u, ""));
+      if (version !== null) {
+        dependencyVersions.set(name, version);
+      }
+    }
+  }
+  return dependencyVersions;
+}
+
+function directDependencyPinsForOverrides(shrinkwrapOverrides, dependencyVersions) {
+  const pinnedNames = new Set(
+    Object.keys(normalizeOverrides(shrinkwrapOverrides)).map(packageNameFromOverrideKey),
+  );
+  return new Map(
+    [...dependencyVersions.entries()]
+      .filter(([name]) => pinnedNames.has(name))
       .toSorted(([left], [right]) => left.localeCompare(right)),
   );
 }
@@ -185,9 +255,28 @@ function readShrinkwrapOverrides() {
   return mergeOverrides(undefined, readWorkspaceOverrides(), readPnpmLockVersionOverrides());
 }
 
-function packageJsonForShrinkwrap(packageJson, shrinkwrapOverrides) {
+function packageJsonForShrinkwrap(
+  packageJson,
+  shrinkwrapOverrides,
+  directDependencyPins = new Map(),
+) {
   const normalized = { ...packageJson };
   delete normalized.devDependencies;
+  const pinnedNames = new Set(
+    Object.keys(normalizeOverrides(shrinkwrapOverrides)).map(packageNameFromOverrideKey),
+  );
+  for (const section of ["dependencies", "optionalDependencies"]) {
+    const dependencies = normalized[section];
+    if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) {
+      continue;
+    }
+    normalized[section] = { ...dependencies };
+    for (const [name, version] of directDependencyPins.entries()) {
+      if (pinnedNames.has(name) && normalized[section][name] !== undefined) {
+        normalized[section][name] = version;
+      }
+    }
+  }
   normalized.overrides = mergeOverrides(packageJson.overrides, shrinkwrapOverrides, {});
   return normalized;
 }
@@ -466,6 +555,8 @@ function generateShrinkwrap(packageDir, options = {}) {
   const tempDir = mkdtempSync(path.join(tmpdir(), "openclaw-shrinkwrap-"));
   try {
     const packageJson = JSON.parse(readFileSync(path.join(packageDir, "package.json"), "utf8"));
+    const pnpmLock = parseYaml(readFileSync(path.join(ROOT_DIR, "pnpm-lock.yaml"), "utf8"));
+    const versionsByName = collectPnpmLockPackageVersions(pnpmLock);
     const shrinkwrapOverrides = mergeOverrides(
       options.useCurrentShrinkwrapOverrides
         ? readCurrentShrinkwrapOverrides(packageDir, declaredPackageDependencies(packageJson))
@@ -473,6 +564,7 @@ function generateShrinkwrap(packageDir, options = {}) {
       readShrinkwrapOverrides(),
       {},
     );
+    const importerDependencyVersions = readPnpmImporterDependencyVersions(packageDir);
     const npmInstallArgs = [
       "install",
       "--package-lock-only",
@@ -481,18 +573,43 @@ function generateShrinkwrap(packageDir, options = {}) {
       "--no-fund",
       ...(shouldUseLegacyPeerDepsForShrinkwrap(packageJson) ? ["--legacy-peer-deps"] : []),
     ];
-    writeFileSync(
-      path.join(tempDir, "package.json"),
-      `${JSON.stringify(packageJsonForShrinkwrap(packageJson, shrinkwrapOverrides), null, 2)}\n`,
-    );
-    runNpm(npmInstallArgs, tempDir);
-    runNpm(["shrinkwrap", "--ignore-scripts", "--no-audit", "--no-fund"], tempDir);
-    normalizeShrinkwrapOverrides(tempDir, shrinkwrapOverrides, npmInstallArgs);
-    const generated = normalizeNpmVersionDrift(
-      applyPackageExtensionPeerMetadata(
-        JSON.parse(readFileSync(path.join(tempDir, "npm-shrinkwrap.json"), "utf8")),
-      ),
-    );
+    let effectiveOverrides = shrinkwrapOverrides;
+    let generated;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const directDependencyPins = directDependencyPinsForOverrides(
+        effectiveOverrides,
+        importerDependencyVersions,
+      );
+      rmSync(path.join(tempDir, "package-lock.json"), { force: true });
+      rmSync(path.join(tempDir, "npm-shrinkwrap.json"), { force: true });
+      writeFileSync(
+        path.join(tempDir, "package.json"),
+        `${JSON.stringify(
+          packageJsonForShrinkwrap(packageJson, effectiveOverrides, directDependencyPins),
+          null,
+          2,
+        )}\n`,
+      );
+      runNpm(npmInstallArgs, tempDir);
+      runNpm(["shrinkwrap", "--ignore-scripts", "--no-audit", "--no-fund"], tempDir);
+      normalizeShrinkwrapOverrides(tempDir, effectiveOverrides, npmInstallArgs);
+      generated = normalizeNpmVersionDrift(
+        applyPackageExtensionPeerMetadata(
+          JSON.parse(readFileSync(path.join(tempDir, "npm-shrinkwrap.json"), "utf8")),
+        ),
+      );
+      const violations = collectPnpmLockViolations(generated);
+      if (violations.length === 0) {
+        break;
+      }
+      const driftOverrides = Object.fromEntries(
+        pnpmLockDriftOverrideEntries(violations, versionsByName),
+      );
+      if (attempt > 0 || Object.keys(driftOverrides).length === 0) {
+        break;
+      }
+      effectiveOverrides = mergeOverrides(effectiveOverrides, driftOverrides, {});
+    }
     assertShrinkwrapMatchesPnpmLock(generated);
     return `${JSON.stringify(generated, null, 2)}\n`;
   } finally {
@@ -868,6 +985,8 @@ export {
   normalizeNpmVersionDrift,
   packageJsonForShrinkwrap,
   packageDependencyInputsChanged,
+  pnpmLockDriftOverrideEntries,
+  pnpmLockOverrideEntriesForVersions,
   pnpmLockOverrideVersionForVersions,
   parsePnpmPackageKey,
   parseLockPackagePath,

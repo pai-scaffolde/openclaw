@@ -678,7 +678,7 @@ describe("scripts/lib/docker-e2e-plan", () => {
       { credentials: ["anthropic"], name: "live-cli-backend-claude" },
       { credentials: ["gemini"], name: "live-cli-backend-gemini" },
       { credentials: ["codex"], name: "live-codex-harness" },
-      { credentials: ["openai"], name: "live-codex-media-path" },
+      { credentials: ["codex"], name: "live-codex-media-path" },
       { credentials: ["openai"], name: "live-subagent-announce" },
       { credentials: ["codex"], name: "live-codex-bind" },
       { credentials: ["anthropic"], name: "live-acp-bind-claude" },
