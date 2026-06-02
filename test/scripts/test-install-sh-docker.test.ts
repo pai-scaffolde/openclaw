@@ -128,7 +128,9 @@ describe("test-install-sh-docker", () => {
     expect(script).toContain('DOCKER_PULL_TIMEOUT="${OPENCLAW_DOCKER_SETUP_PULL_TIMEOUT:-600s}"');
     expect(script).toContain("run_docker_pull()");
     expect(script).toContain("timeout --kill-after=1s 1s true");
-    expect(script).toContain('timeout --kill-after=30s "$DOCKER_PULL_TIMEOUT" docker pull "$image"');
+    expect(script).toContain(
+      'timeout --kill-after=30s "$DOCKER_PULL_TIMEOUT" docker pull "$image"',
+    );
     expect(script).toContain('timeout "$DOCKER_PULL_TIMEOUT" docker pull "$image"');
     expect(script).toContain('run_docker_pull "$IMAGE_NAME"');
     expect(script).not.toContain('docker pull "$IMAGE_NAME"');
@@ -137,12 +139,12 @@ describe("test-install-sh-docker", () => {
   it("bounds Podman setup image pulls", () => {
     const script = readFileSync(PODMAN_SETUP_PATH, "utf8");
 
-    expect(script).toContain(
-      'PODMAN_PULL_TIMEOUT="${OPENCLAW_PODMAN_SETUP_PULL_TIMEOUT:-600s}"',
-    );
+    expect(script).toContain('PODMAN_PULL_TIMEOUT="${OPENCLAW_PODMAN_SETUP_PULL_TIMEOUT:-600s}"');
     expect(script).toContain("run_podman_pull()");
     expect(script).toContain("timeout --kill-after=1s 1s true");
-    expect(script).toContain('timeout --kill-after=30s "$PODMAN_PULL_TIMEOUT" podman pull "$image"');
+    expect(script).toContain(
+      'timeout --kill-after=30s "$PODMAN_PULL_TIMEOUT" podman pull "$image"',
+    );
     expect(script).toContain('timeout "$PODMAN_PULL_TIMEOUT" podman pull "$image"');
     expect(script).toContain('run_podman_pull "$OPENCLAW_IMAGE"');
     expect(script).not.toContain('podman pull "$OPENCLAW_IMAGE"');
@@ -314,13 +316,9 @@ describe("install-sh smoke runner", () => {
     ]) {
       expect(script).toContain(envName);
     }
-    expect(script).toMatch(
-      /Run installer smoke test[\s\S]*"\$\{SMOKE_RUNNER_ENV_ARGS\[@\]\}"/u,
-    );
+    expect(script).toMatch(/Run installer smoke test[\s\S]*"\$\{SMOKE_RUNNER_ENV_ARGS\[@\]\}"/u);
     expect(script).toMatch(/Run update smoke[\s\S]*"\$\{SMOKE_RUNNER_ENV_ARGS\[@\]\}"/u);
-    expect(script).toMatch(
-      /Run direct npm global smoke[\s\S]*"\$\{SMOKE_RUNNER_ENV_ARGS\[@\]\}"/u,
-    );
+    expect(script).toMatch(/Run direct npm global smoke[\s\S]*"\$\{SMOKE_RUNNER_ENV_ARGS\[@\]\}"/u);
     expect(script).toMatch(
       /Run installer npm freshness smoke[\s\S]*"\$\{SMOKE_RUNNER_ENV_ARGS\[@\]\}"/u,
     );
@@ -351,14 +349,16 @@ describe("bun global install smoke", () => {
     expect(script).not.toContain('docker cp "${container_id}:/app/dist" "$ROOT_DIR/dist"');
   });
 
-  it("gates workflow Bun install smoke to scheduled and release-check runs", () => {
+  it("gates workflow Bun install smoke to explicit manual and release-check runs", () => {
     const workflow = readFileSync(INSTALL_SMOKE_WORKFLOW_PATH, "utf8");
     const releaseChecks = readFileSync(RELEASE_CHECKS_WORKFLOW_PATH, "utf8");
 
     expect(workflow).not.toContain("pull_request:");
     expect(workflow).not.toContain("branches: [main]");
+    expect(workflow).not.toContain("schedule:");
+    expect(workflow).not.toContain("cron:");
+    expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("workflow_call:");
-    expect(workflow).toContain('cron: "17 3 * * *"');
     expect(workflow).toContain("run_bun_global_install_smoke:");
     expect(workflow).toContain(
       "if: needs.preflight.outputs.run_full_install_smoke == 'true' && needs.preflight.outputs.run_bun_global_install_smoke == 'true'",
@@ -396,9 +396,7 @@ describe("bun global install smoke", () => {
     expect(workflow).toContain("timeout --kill-after=30s 45m docker buildx build");
     expect(workflow).toContain('timeout --kill-after=30s 600s docker pull "$IMAGE_REF"');
     expect(workflow).not.toContain('timeout 300s docker pull "$IMAGE_REF"');
-    expect(workflow.match(/timeout --kill-after=30s 20m docker run --rm/g)?.length).toBe(
-      6,
-    );
+    expect(workflow.match(/timeout --kill-after=30s 20m docker run --rm/g)?.length).toBe(6);
     expect(workflow).not.toMatch(/(^|\n)\s+docker run --rm --entrypoint sh/u);
     expect(workflow).toContain("--progress=plain");
     expect(workflow).toContain("--load");

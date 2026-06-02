@@ -1652,7 +1652,6 @@
     "test:docker:live-cli-backend:gemini": "OPENCLAW_LIVE_CLI_BACKEND_MODEL=google-gemini-cli/gemini-3-flash-preview bash scripts/test-live-cli-backend-docker.sh",
     "test:docker:live-cli-backend:gemini:mcp": "OPENCLAW_LIVE_CLI_BACKEND_MODEL=google-gemini-cli/gemini-3-flash-preview OPENCLAW_LIVE_CLI_BACKEND_MCP_PROBE=1 bash scripts/test-live-cli-backend-docker.sh",
     "test:docker:live-cli-backend:gemini:resume": "OPENCLAW_LIVE_CLI_BACKEND_MODEL=google-gemini-cli/gemini-3-flash-preview OPENCLAW_LIVE_CLI_BACKEND_RESUME_PROBE=1 bash scripts/test-live-cli-backend-docker.sh",
-    "test:docker:live-codex-bind": "OPENCLAW_LIVE_CODEX_BIND=1 OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts bash scripts/test-live-codex-harness-docker.sh",
     "test:docker:live-codex-harness": "bash scripts/test-live-codex-harness-docker.sh",
     "test:docker:live-codex-media-path": "OPENCLAW_LIVE_CODEX_HARNESS_CHAT_IMAGE_PROBE=1 OPENCLAW_LIVE_CODEX_HARNESS_IMAGE_PROBE=0 OPENCLAW_LIVE_CODEX_HARNESS_MCP_PROBE=0 OPENCLAW_LIVE_CODEX_HARNESS_SUBAGENT_PROBE=0 OPENCLAW_LIVE_CODEX_HARNESS_GUARDIAN_PROBE=0 bash scripts/test-live-codex-harness-docker.sh",
     "test:docker:live-codex-npm-plugin": "bash scripts/e2e/codex-npm-plugin-live-docker.sh",

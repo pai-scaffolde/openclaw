@@ -1,9 +1,7 @@
 name: Dependency Change Awareness
 
 on:
-  pull_request_target: # zizmor: ignore[dangerous-triggers] metadata-only workflow; no checkout or untrusted code execution
-    types: [opened, reopened, synchronize, ready_for_review]
-
+  workflow_dispatch:
 permissions:
   pull-requests: write
   issues: write

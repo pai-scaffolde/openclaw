@@ -680,7 +680,6 @@ describe("scripts/lib/docker-e2e-plan", () => {
       { credentials: ["codex"], name: "live-codex-harness" },
       { credentials: ["codex"], name: "live-codex-media-path" },
       { credentials: ["openai"], name: "live-subagent-announce" },
-      { credentials: ["codex"], name: "live-codex-bind" },
       { credentials: ["anthropic"], name: "live-acp-bind-claude" },
       { credentials: ["codex", "openai"], name: "live-acp-bind-codex" },
       { credentials: ["factory"], name: "live-acp-bind-droid" },
@@ -693,15 +692,9 @@ describe("scripts/lib/docker-e2e-plan", () => {
     }
   });
 
-  it("plans native Codex bind through the public OpenAI model route with Codex auth", () => {
-    const plan = planFor({ selectedLaneNames: ["live-codex-bind"] });
-    const lane = plan.lanes[0];
-
-    expect(plan.credentials).toEqual(["codex"]);
-    expect(lane?.command).toContain("OPENCLAW_LIVE_CODEX_BIND=1");
-    expect(lane?.command).toContain("OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai");
-    expect(lane?.command).toContain(
-      "OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts",
+  it("does not expose native Codex bind as a standard Docker lane", () => {
+    expect(() => planFor({ selectedLaneNames: ["live-codex-bind"] })).toThrow(
+      /unknown lane\(s\): live-codex-bind/u,
     );
   });
 

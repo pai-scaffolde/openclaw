@@ -515,20 +515,6 @@ export const tailLanes = [
       weight: 3,
     },
   ),
-  liveLane(
-    "live-codex-bind",
-    liveDockerScriptCommand(
-      "test-live-codex-harness-docker.sh",
-      "OPENCLAW_LIVE_CODEX_BIND=1 OPENCLAW_LIVE_CODEX_BIND_PROVIDER=openai OPENCLAW_LIVE_CODEX_TEST_FILES=src/gateway/gateway-codex-bind.live.test.ts",
-    ),
-    {
-      cacheKey: "codex-harness",
-      provider: "codex-cli",
-      resources: ["npm"],
-      timeoutMs: LIVE_ACP_TIMEOUT_MS,
-      weight: 3,
-    },
-  ),
   liveCodexNpmPluginLane(),
   livePluginToolLane(),
   liveLane(
